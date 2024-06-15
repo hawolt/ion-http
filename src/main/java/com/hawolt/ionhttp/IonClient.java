@@ -127,6 +127,7 @@ public class IonClient {
                 writer.write("Proxy-Authorization: Basic " + authenticator.asBasic());
             }
             writer.write("");
+            writer.flush();
         } catch (IOException e) {
             if (socket != null) {
                 socket.close();
@@ -147,13 +148,20 @@ public class IonClient {
         return proxy == null ? plain(request) : tunnel(request);
     }
 
+    private Socket upgrade(IonRequest.Builder builder, boolean isProxyRequest, Socket socket) throws IOException {
+        if (!isProxyRequest) return socket;
+        if (!"https".equals(builder.protocol)) return socket;
+        return factory.createSocket(socket, builder.hostname, builder.port, true);
+    }
 
     public IonResponse execute(IonRequest request) throws IOException {
         IonRequest.Builder builder = request.getBuilder();
         Socket socket = openConnection(request);
-        IonResponse proxied = proxy != null ?
+        boolean isProxyRequest = proxy != null;
+        IonResponse proxied = isProxyRequest ?
                 IonResponse.create(request, socket, manager) :
                 null;
+        socket = upgrade(builder, isProxyRequest, socket);
         SocketWriter writer = new SocketWriter(socket.getOutputStream());
         writer.write(String.join(" ", builder.method, builder.path, "HTTP/1.1"));
         for (Map.Entry<String, String> entry : request.getBuilder().headers.entrySet()) {
