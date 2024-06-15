@@ -1,6 +1,7 @@
 package com.hawolt.ionhttp.request;
 
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 public class IonRequest {
@@ -19,8 +20,8 @@ public class IonRequest {
     }
 
     public static class Builder {
+        public final Map<String, String> headers = new LinkedHashMap<>();
         public final Map<String, String> parameters = new HashMap<>();
-        public final Map<String, String> headers = new HashMap<>();
         public String method, protocol, hostname, path;
 
         public IonReadState state;
