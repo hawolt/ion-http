@@ -47,9 +47,9 @@ public class IonResponse implements AutoCloseable {
         String line;
         while (!(line = reader.readContentLine()).isEmpty()) {
             String[] data = line.split(":", 2);
-            addHeader(data[0], data[1].trim());
+            addHeader(data[0].toLowerCase(), data[1].trim());
         }
-        List<String> base = headers.get("Set-Cookie");
+        List<String> base = headers.get("set-cookie");
         if (base == null) return;
         IonRequest.Builder builder = origin.getBuilder();
         String url = String.format("%s://%s/", builder.protocol, builder.hostname);
@@ -62,15 +62,19 @@ public class IonResponse implements AutoCloseable {
 
     public byte[] body() throws IOException {
         if (origin.getBuilder().state == IonReadState.STATUS) headers();
-        boolean close = headers.getOrDefault("Connection", new ArrayList<>()).stream().anyMatch("close"::equals);
-        boolean encoded = headers.containsKey("Transfer-Encoding");
-        boolean length = headers.containsKey("Content-Length");
+        boolean close = headers.getOrDefault("connection", new ArrayList<>()).stream().anyMatch("close"::equals);
+        boolean encoded = headers.containsKey("transfer-encoding");
+        boolean length = headers.containsKey("content-length");
+        for (String header : getHeaderMap().keySet()) {
+            System.out.println(header + ": " + getHeaderMap().get(header));
+        }
+
         if (encoded && length) throw new IOException("Encountered a pair of headers that is not permitted");
         SocketReader reader = new SocketReader(socket.getInputStream());
         if (length) {
-            return reader.readContentLengthBody(Integer.parseInt(headers.get("Content-Length").get(0)));
+            return reader.readContentLengthBody(Integer.parseInt(headers.get("content-length").get(0)));
         } else if (encoded) {
-            String encoding = headers.get("Transfer-Encoding").get(0);
+            String encoding = headers.get("transfer-encoding").get(0);
             switch (encoding) {
                 case "chunked":
                     return reader.readChunkedBody();
