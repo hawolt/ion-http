@@ -1,5 +1,7 @@
 package com.hawolt.ionhttp.request;
 
+import com.hawolt.ionhttp.cookies.Cookie;
+import com.hawolt.ionhttp.cookies.CookieManager;
 import com.hawolt.ionhttp.misc.SocketReader;
 
 import java.io.IOException;
@@ -9,27 +11,30 @@ import java.util.*;
 public class IonResponse implements AutoCloseable {
     private final Map<String, List<String>> headers = new HashMap<>();
     private final String version, reason;
-    private final IonReadState state;
+    private final CookieManager manager;
+    private final IonRequest origin;
     private final Socket socket;
     private final int code;
 
     private IonResponse predecessor;
 
-    public static IonResponse create(Socket socket, IonReadState state) throws IOException {
+    public static IonResponse create(IonRequest request, Socket socket, CookieManager manager) throws IOException {
         SocketReader reader = new SocketReader(socket.getInputStream());
-        IonResponse response = new IonResponse(socket, state, reader.readContentLine());
+        IonReadState state = request.getBuilder().state;
+        IonResponse response = new IonResponse(request, socket, manager, reader.readContentLine());
         if (state == IonReadState.STATUS) return response;
         response.headers();
         return response;
     }
 
-    private IonResponse(Socket socket, IonReadState state, String status) {
+    private IonResponse(IonRequest request, Socket socket, CookieManager manager, String status) {
         String[] data = status.split(" ");
         this.code = Integer.parseInt(data[1]);
+        this.manager = manager;
         this.version = data[0];
         this.reason = data[2];
+        this.origin = request;
         this.socket = socket;
-        this.state = state;
     }
 
     public void addHeader(String k, String v) {
@@ -44,10 +49,19 @@ public class IonResponse implements AutoCloseable {
             String[] data = line.split(":", 2);
             addHeader(data[0], data[1].trim());
         }
+        List<String> base = headers.get("Set-Cookie");
+        if (base == null) return;
+        IonRequest.Builder builder = origin.getBuilder();
+        String url = String.format("%s://%s/", builder.protocol, builder.hostname);
+        manager.add(
+                base.stream()
+                        .map(content -> new Cookie(url, content))
+                        .toArray(Cookie[]::new)
+        );
     }
 
     public byte[] body() throws IOException {
-        if (state == IonReadState.STATUS) headers();
+        if (origin.getBuilder().state == IonReadState.STATUS) headers();
         boolean close = headers.getOrDefault("Connection", new ArrayList<>()).stream().anyMatch("close"::equals);
         boolean encoded = headers.containsKey("Transfer-Encoding");
         boolean length = headers.containsKey("Content-Length");
@@ -68,6 +82,10 @@ public class IonResponse implements AutoCloseable {
         } else {
             throw new IOException("Encountered unknown state for the body");
         }
+    }
+
+    public IonRequest getOrigin() {
+        return origin;
     }
 
     public IonResponse getPredecessor() {

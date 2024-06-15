@@ -3,11 +3,11 @@ package com.hawolt.ionhttp;
 import com.hawolt.ionhttp.certificates.AllTrustManager;
 import com.hawolt.ionhttp.certificates.BasicTrustManager;
 import com.hawolt.ionhttp.cookies.CookieManager;
+import com.hawolt.ionhttp.cookies.impl.ForgettingCookieManager;
 import com.hawolt.ionhttp.misc.SocketWriter;
 import com.hawolt.ionhttp.misc.TLS;
 import com.hawolt.ionhttp.proxy.ProxyAuthenticator;
 import com.hawolt.ionhttp.proxy.ProxyServer;
-import com.hawolt.ionhttp.request.IonReadState;
 import com.hawolt.ionhttp.request.IonRequest;
 import com.hawolt.ionhttp.request.IonResponse;
 
@@ -27,6 +27,7 @@ public class IonClient {
     }
 
     private final SSLSocketFactory factory;
+    private final CookieManager manager;
     private final ProxyServer proxy;
     private final String[] suites;
     private final TLS tls;
@@ -34,6 +35,7 @@ public class IonClient {
     private IonClient(Builder builder) {
         this.factory = construct(builder);
         this.proxy = builder.proxyServer;
+        this.manager = builder.manager;
         this.suites = builder.suites;
         this.tls = builder.tls;
     }
@@ -58,7 +60,7 @@ public class IonClient {
 
     public static class Builder {
         private X509TrustManager trustManager = new BasicTrustManager();
-        private CookieManager cookieManager;
+        private CookieManager manager = new ForgettingCookieManager();
         private ProxyServer proxyServer;
         private String[] suites;
         private TLS tls;
@@ -84,7 +86,7 @@ public class IonClient {
         }
 
         public Builder setCookieManager(CookieManager cookieManager) {
-            this.cookieManager = cookieManager;
+            this.manager = cookieManager;
             return this;
         }
 
@@ -124,15 +126,12 @@ public class IonClient {
                 writer.write("Proxy-Authorization: Basic " + authenticator.asBasic());
             }
             writer.write("");
-
-
         } catch (IOException e) {
-            e.printStackTrace();
             if (socket != null) {
                 socket.close();
             }
+            throw e;
         }
-        if (socket == null) throw new IOException("Something went wrong");
         return socket;
     }
 
@@ -152,14 +151,14 @@ public class IonClient {
         IonRequest.Builder builder = request.getBuilder();
         Socket socket = openConnection(request);
         IonResponse proxied = proxy != null ?
-                IonResponse.create(socket, IonReadState.HEADER) :
+                IonResponse.create(request, socket, manager) :
                 null;
         SocketWriter writer = new SocketWriter(socket.getOutputStream());
         writer.write(String.join(" ", builder.method, builder.path, "HTTP/1.1"));
         writer.write(String.join(" ", "Host:", builder.hostname));
         writer.write("");
         writer.flush();
-        IonResponse response = IonResponse.create(socket, builder.state);
+        IonResponse response = IonResponse.create(request, socket, manager);
         response.setPredecessor(proxied);
         return response;
     }
