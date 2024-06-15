@@ -8,13 +8,8 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 public class DefaultCookieManager implements CookieManager {
-
     private final Map<String, Cookie> map = new HashMap<>();
     private final Object lock = new Object();
-
-    private DefaultCookieManager() {
-        throw new RuntimeException("not implemented");
-    }
 
     @Override
     public String getCookie(String hostname) {
