@@ -162,4 +162,8 @@ public class IonClient {
         response.setPredecessor(proxied);
         return response;
     }
+
+    public CookieManager getCookieManager() {
+        return manager;
+    }
 }
