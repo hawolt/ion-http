@@ -63,7 +63,7 @@ public class IonRequest {
             this.hostname = arr[0];
             if (arr.length == 2) {
                 arr = arr[1].split("\\?", 2);
-                this.path = arr[0];
+                this.path = "/" + arr[0];
             } else {
                 this.path = "/";
             }
