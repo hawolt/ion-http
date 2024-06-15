@@ -5,5 +5,7 @@ public interface CookieManager {
 
     void add(Cookie... cookies);
 
+    boolean has(String cookie);
+
     Cookie[] getAllCookies();
 }
