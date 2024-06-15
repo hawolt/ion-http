@@ -18,6 +18,7 @@ import java.net.Socket;
 import java.security.KeyManagementException;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
+import java.util.Map;
 
 public class IonClient {
     private final static SSLSocketFactory DEFAULT_SOCKET_FACTORY = (SSLSocketFactory) SSLSocketFactory.getDefault();
@@ -155,7 +156,9 @@ public class IonClient {
                 null;
         SocketWriter writer = new SocketWriter(socket.getOutputStream());
         writer.write(String.join(" ", builder.method, builder.path, "HTTP/1.1"));
-        writer.write(String.join(" ", "Host:", builder.hostname));
+        for (Map.Entry<String, String> entry : request.getBuilder().headers.entrySet()) {
+            writer.write(String.join(": ", entry.getKey(), entry.getValue()));
+        }
         writer.write("");
         writer.flush();
         IonResponse response = IonResponse.create(request, socket, manager);
