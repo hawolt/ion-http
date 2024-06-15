@@ -58,7 +58,7 @@ public class TestProxyFunctionality {
             int lastIndex = response.lastIndexOf("<");
             String closing = response.substring(lastIndex, lastIndex + 7);
 
-            assertEquals("</html>", closing);
+            assertEquals("Response should end with </html>", "</html>", closing);
         } catch (IOException e) {
             assert false;
         }
