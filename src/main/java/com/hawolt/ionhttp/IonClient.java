@@ -169,6 +169,11 @@ public class IonClient {
         }
         writer.write("");
         writer.flush();
+        byte[] payload = builder.payload;
+        if (payload != null && payload.length > 0) {
+            writer.write(payload);
+            writer.flush();
+        }
         IonResponse response = IonResponse.create(request, socket, manager);
         response.setPredecessor(proxied);
         return response;
