@@ -7,10 +7,17 @@ import java.util.stream.Collectors;
 
 public class Cookie {
 
-    private final static SimpleDateFormat RFC_1123_DATE_TIME = new SimpleDateFormat("EEE, dd-MMM-yy HH:mm:ss zzz", Locale.US);
+    private final static SimpleDateFormat[] DATE_FORMATS = new SimpleDateFormat[]{
+            new SimpleDateFormat("EEE, dd-MMM-yy HH:mm:ss z", Locale.US),
+            new SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss z", Locale.US),
+            new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSXXX", Locale.US),
+            new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX", Locale.US)
+    };
 
     static {
-        RFC_1123_DATE_TIME.setTimeZone(TimeZone.getTimeZone("GMT"));
+        for (SimpleDateFormat format : DATE_FORMATS) {
+            format.setTimeZone(TimeZone.getTimeZone("GMT"));
+        }
     }
 
     private final Map<String, String> map = new HashMap<>();
@@ -42,15 +49,15 @@ public class Cookie {
 
     public boolean isNotExpired() {
         if (!map.containsKey("expires")) return true;
-        try {
-            Date date = RFC_1123_DATE_TIME.parse(map.get("expires"));
-            return System.currentTimeMillis() < date.toInstant().toEpochMilli();
-        } catch (ParseException e) {
-            return false;
-        } catch (NumberFormatException e) {
-            // Logger.warn("Failed to parse Cookie expires value: '{}', defaulting to true", map.get("expires"));
-            return true;
+        for (SimpleDateFormat format : DATE_FORMATS) {
+            try {
+                Date date = format.parse(map.get("expires"));
+                return System.currentTimeMillis() < date.toInstant().toEpochMilli();
+            } catch (NumberFormatException | ParseException e) {
+                // ignored
+            }
         }
+        return false;
     }
 
     public boolean hasValue() {
