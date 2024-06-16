@@ -9,7 +9,7 @@ import java.nio.charset.StandardCharsets;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-public class HttpRequestTest {
+public class TestHttpRequest {
     @Test
     public void test() {
 
