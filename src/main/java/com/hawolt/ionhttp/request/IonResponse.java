@@ -65,10 +65,6 @@ public class IonResponse implements AutoCloseable {
         boolean close = headers.getOrDefault("connection", new ArrayList<>()).stream().anyMatch("close"::equals);
         boolean encoded = headers.containsKey("transfer-encoding");
         boolean length = headers.containsKey("content-length");
-        for (String header : getHeaderMap().keySet()) {
-            System.out.println(header + ": " + getHeaderMap().get(header));
-        }
-
         if (encoded && length) throw new IOException("Encountered a pair of headers that is not permitted");
         SocketReader reader = new SocketReader(socket.getInputStream());
         if (length) {
