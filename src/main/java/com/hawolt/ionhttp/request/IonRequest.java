@@ -91,6 +91,10 @@ public class IonRequest {
             return new IonRequest(this);
         }
 
+        public IonRequest post() {
+            this.method = "POST";
+            return new IonRequest(this);
+        }
 
         public IonRequest head() {
             this.method = "HEAD";
