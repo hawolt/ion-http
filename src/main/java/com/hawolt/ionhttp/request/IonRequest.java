@@ -76,6 +76,11 @@ public class IonRequest {
             }
         }
 
+        public SimpleBuilder addQueryParameter(String k, Object v) {
+            this.parameters.put(k, v.toString());
+            return this;
+        }
+
         public SimpleBuilder addHeader(String k, Object v) {
             this.headers.put(k, v.toString());
             return this;
