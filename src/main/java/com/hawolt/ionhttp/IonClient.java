@@ -15,9 +15,13 @@ import javax.net.ssl.*;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.Socket;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.security.KeyManagementException;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 public class IonClient {
@@ -163,7 +167,19 @@ public class IonClient {
                 null;
         socket = upgrade(builder, isProxyRequest, socket);
         SocketWriter writer = new SocketWriter(socket.getOutputStream());
-        writer.write(String.join(" ", builder.method, builder.path, "HTTP/1.1"));
+        StringBuilder buffer = new StringBuilder(builder.path);
+        Map<String, String> parameters = builder.parameters;
+        if (!parameters.isEmpty()) buffer.append("?");
+        List<String> list = new ArrayList<>(parameters.keySet());
+        for (int i = 0; i < list.size(); i++) {
+            String key = list.get(i);
+            String value = parameters.get(key);
+            if (i > 0) buffer.append("&");
+            buffer.append(URLEncoder.encode(key, StandardCharsets.UTF_8));
+            buffer.append("=");
+            buffer.append(URLEncoder.encode(value, StandardCharsets.UTF_8));
+        }
+        writer.write(String.join(" ", builder.method, buffer.toString(), "HTTP/1.1"));
         for (Map.Entry<String, String> entry : request.getBuilder().headers.entrySet()) {
             writer.write(String.join(": ", entry.getKey(), entry.getValue()));
         }
