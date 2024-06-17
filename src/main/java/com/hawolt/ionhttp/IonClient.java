@@ -160,6 +160,8 @@ public class IonClient {
     public IonResponse execute(IonRequest request) throws IOException {
         IonRequest.Builder builder = request.builder();
         Socket socket = openConnection(request);
+        ProxyServer overwrite = request.builder().proxy;
+        ProxyServer proxy = overwrite != null ? overwrite : this.proxy;
         boolean isProxyRequest = proxy != null;
         IonResponse proxied = isProxyRequest ?
                 IonResponse.create(request, socket, manager) :
