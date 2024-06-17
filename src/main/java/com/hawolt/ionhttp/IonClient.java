@@ -13,7 +13,6 @@ import com.hawolt.ionhttp.request.IonResponse;
 
 import javax.net.ssl.*;
 import java.io.IOException;
-import java.net.InetAddress;
 import java.net.Socket;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
@@ -106,15 +105,15 @@ public class IonClient {
     }
 
 
-    private Socket create(String protocol, String ip, int port) throws IOException {
+    private Socket create(String protocol, String host, int port) throws IOException {
         if ("https".equals(protocol)) {
-            SSLSocket socket = (SSLSocket) factory.createSocket(ip, port);
+            SSLSocket socket = (SSLSocket) factory.createSocket(host, port);
             socket.setEnabledProtocols(new String[]{tls.getValue()});
             socket.setEnabledCipherSuites(suites);
             socket.startHandshake();
             return socket;
         } else {
-            return new Socket(ip, port);
+            return new Socket(host, port);
         }
     }
 
@@ -123,7 +122,7 @@ public class IonClient {
         Socket socket = null;
         try {
             ProxyAuthenticator authenticator = proxy.getProxyAuthenticator();
-            socket = create("http", proxy.getIP(), proxy.getPort());
+            socket = create("http", proxy.getHost(), proxy.getPort());
             SocketWriter writer = new SocketWriter(socket.getOutputStream());
             writer.write("CONNECT " + String.join(":", builder.hostname, String.valueOf(builder.port)) + " HTTP/1.1");
             writer.write("Host: " + builder.hostname);
@@ -143,9 +142,7 @@ public class IonClient {
 
     private Socket plain(IonRequest request) throws IOException {
         IonRequest.Builder builder = request.builder();
-        InetAddress address = InetAddress.getByName(builder.hostname);
-        String ip = address.getHostAddress();
-        return create(builder.protocol, ip, builder.port);
+        return create(builder.protocol, builder.hostname, builder.port);
     }
 
     private Socket openConnection(IonRequest request) throws IOException {
