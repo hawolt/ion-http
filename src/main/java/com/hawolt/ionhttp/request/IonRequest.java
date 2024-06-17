@@ -11,7 +11,7 @@ public class IonRequest {
         this.builder = builder;
     }
 
-    public Builder getBuilder() {
+    public Builder builder() {
         return builder;
     }
 

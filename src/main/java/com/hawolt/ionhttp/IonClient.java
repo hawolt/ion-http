@@ -119,7 +119,7 @@ public class IonClient {
     }
 
     private Socket tunnel(IonRequest request) throws IOException {
-        IonRequest.Builder builder = request.getBuilder();
+        IonRequest.Builder builder = request.builder();
         Socket socket = null;
         try {
             ProxyAuthenticator authenticator = proxy.getProxyAuthenticator();
@@ -142,7 +142,7 @@ public class IonClient {
     }
 
     private Socket plain(IonRequest request) throws IOException {
-        IonRequest.Builder builder = request.getBuilder();
+        IonRequest.Builder builder = request.builder();
         InetAddress address = InetAddress.getByName(builder.hostname);
         String ip = address.getHostAddress();
         return create(builder.protocol, ip, builder.port);
@@ -159,7 +159,7 @@ public class IonClient {
     }
 
     public IonResponse execute(IonRequest request) throws IOException {
-        IonRequest.Builder builder = request.getBuilder();
+        IonRequest.Builder builder = request.builder();
         Socket socket = openConnection(request);
         boolean isProxyRequest = proxy != null;
         IonResponse proxied = isProxyRequest ?
@@ -180,7 +180,7 @@ public class IonClient {
             buffer.append(URLEncoder.encode(value, StandardCharsets.UTF_8));
         }
         writer.write(String.join(" ", builder.method, buffer.toString(), "HTTP/1.1"));
-        for (Map.Entry<String, String> entry : request.getBuilder().headers.entrySet()) {
+        for (Map.Entry<String, String> entry : request.builder().headers.entrySet()) {
             writer.write(String.join(": ", entry.getKey(), entry.getValue()));
         }
         writer.write("");

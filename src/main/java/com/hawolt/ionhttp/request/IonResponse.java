@@ -15,15 +15,14 @@ public class IonResponse implements AutoCloseable {
     private final IonRequest origin;
     private final Socket socket;
     private final int code;
-
     private IonResponse predecessor;
 
     public static IonResponse create(IonRequest request, Socket socket, CookieManager manager) throws IOException {
         SocketReader reader = new SocketReader(socket.getInputStream());
-        IonReadState state = request.getBuilder().state;
+        IonReadState state = request.builder().state;
         IonResponse response = new IonResponse(request, socket, manager, reader.readContentLine());
         if (state == IonReadState.STATUS) return response;
-        response.headers();
+        response.readHeader();
         return response;
     }
 
@@ -42,7 +41,7 @@ public class IonResponse implements AutoCloseable {
         this.headers.get(k).add(v);
     }
 
-    private void headers() throws IOException {
+    private void readHeader() throws IOException {
         SocketReader reader = new SocketReader(socket.getInputStream());
         String line;
         while (!(line = reader.readContentLine()).isEmpty()) {
@@ -51,7 +50,7 @@ public class IonResponse implements AutoCloseable {
         }
         List<String> base = headers.get("set-cookie");
         if (base == null) return;
-        IonRequest.Builder builder = origin.getBuilder();
+        IonRequest.Builder builder = origin.builder();
         String url = String.format("%s://%s/", builder.protocol, builder.hostname);
         manager.add(
                 base.stream()
@@ -61,7 +60,7 @@ public class IonResponse implements AutoCloseable {
     }
 
     public byte[] body() throws IOException {
-        if (origin.getBuilder().state == IonReadState.STATUS) headers();
+        if (origin.builder().state == IonReadState.STATUS) readHeader();
         boolean close = headers.getOrDefault("connection", new ArrayList<>()).stream().anyMatch("close"::equals);
         boolean encoded = headers.containsKey("transfer-encoding");
         boolean length = headers.containsKey("content-length");
@@ -84,11 +83,11 @@ public class IonResponse implements AutoCloseable {
         }
     }
 
-    public IonRequest getOrigin() {
+    public IonRequest origin() {
         return origin;
     }
 
-    public IonResponse getPredecessor() {
+    public IonResponse predecessor() {
         return predecessor;
     }
 
@@ -96,19 +95,19 @@ public class IonResponse implements AutoCloseable {
         this.predecessor = predecessor;
     }
 
-    public Map<String, List<String>> getHeaderMap() {
+    public Map<String, List<String>> headers() {
         return headers;
     }
 
-    public String getVersion() {
+    public String version() {
         return version;
     }
 
-    public String getReason() {
+    public String reason() {
         return reason;
     }
 
-    public int getCode() {
+    public int code() {
         return code;
     }
 

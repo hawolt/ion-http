@@ -21,7 +21,7 @@ public class TestHttpRequest {
 
         try (IonResponse response = client.execute(request)) {
 
-            int code = response.getCode();
+            int code = response.code();
             byte[] body = response.body();
             String string = new String(body, StandardCharsets.UTF_8);
 
