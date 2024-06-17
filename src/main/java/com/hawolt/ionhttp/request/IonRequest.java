@@ -1,5 +1,7 @@
 package com.hawolt.ionhttp.request;
 
+import com.hawolt.ionhttp.proxy.ProxyServer;
+
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -23,8 +25,8 @@ public class IonRequest {
         public final Map<String, String> headers = new LinkedHashMap<>();
         public final Map<String, String> parameters = new HashMap<>();
         public String method, protocol, hostname, path;
-
         public IonReadState state;
+        public ProxyServer proxy;
         public byte[] payload;
         public int port;
 
@@ -74,6 +76,11 @@ public class IonRequest {
                 String value = pair.length == 2 ? pair[1] : "";
                 this.parameters.put(pair[0], value);
             }
+        }
+
+        public SimpleBuilder setProxyServer(ProxyServer proxy) {
+            this.proxy = proxy;
+            return this;
         }
 
         public SimpleBuilder addQueryParameter(String k, Object v) {
@@ -156,6 +163,11 @@ public class IonRequest {
 
         public AdvancedBuilder method(String method) {
             this.method = method;
+            return this;
+        }
+
+        public AdvancedBuilder setProxyServer(ProxyServer proxy) {
+            this.proxy = proxy;
             return this;
         }
 

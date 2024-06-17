@@ -117,7 +117,7 @@ public class IonClient {
         }
     }
 
-    private Socket tunnel(IonRequest request) throws IOException {
+    private Socket tunnel(IonRequest request, ProxyServer proxy) throws IOException {
         IonRequest.Builder builder = request.builder();
         Socket socket = null;
         try {
@@ -146,7 +146,9 @@ public class IonClient {
     }
 
     private Socket openConnection(IonRequest request) throws IOException {
-        return proxy == null ? plain(request) : tunnel(request);
+        ProxyServer overwrite = request.builder().proxy;
+        ProxyServer proxy = overwrite != null ? overwrite : this.proxy;
+        return proxy == null ? plain(request) : tunnel(request, proxy);
     }
 
     private Socket upgrade(IonRequest.Builder builder, boolean isProxyRequest, Socket socket) throws IOException {
