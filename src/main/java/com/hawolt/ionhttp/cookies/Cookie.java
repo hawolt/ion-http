@@ -53,6 +53,8 @@ public class Cookie {
             try {
                 Date date = format.parse(map.get("expires"));
                 return System.currentTimeMillis() < date.toInstant().toEpochMilli();
+            } catch (NumberFormatException | ParseException e) {
+                // ignored
             } catch (Exception e) {
                 System.err.println("Failed to parse: " + map.get("expires"));
             }
