@@ -2,25 +2,25 @@ package com.hawolt.ionhttp.proxy;
 
 public class ProxyServer {
     private final ProxyAuthenticator proxyAuthenticator;
-    private final String ip;
+    private final String host;
     private final int port;
 
-    private ProxyServer(String ip, int port) {
-        this(ip, port, null);
+    private ProxyServer(String host, int port) {
+        this(host, port, null);
     }
 
-    private ProxyServer(String ip, int port, ProxyAuthenticator proxyAuthenticator) {
+    private ProxyServer(String host, int port, ProxyAuthenticator proxyAuthenticator) {
         this.proxyAuthenticator = proxyAuthenticator;
         this.port = port;
-        this.ip = ip;
+        this.host = host;
     }
 
     public ProxyAuthenticator getProxyAuthenticator() {
         return proxyAuthenticator;
     }
 
-    public String getIP() {
-        return ip;
+    public String getHost() {
+        return host;
     }
 
     public int getPort() {
