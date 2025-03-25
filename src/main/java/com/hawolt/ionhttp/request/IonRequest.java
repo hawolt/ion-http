@@ -3,6 +3,7 @@ package com.hawolt.ionhttp.request;
 import com.hawolt.ionhttp.data.ByteSink;
 import com.hawolt.ionhttp.data.HttpWriter;
 import com.hawolt.ionhttp.proxy.ProxyServer;
+import com.hawolt.logger.Logger;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -68,9 +69,33 @@ public class IonRequest implements ByteSink {
         }
     }
 
+    //TODO fix this
     @Override
     public void drainTo(OutputStream stream) throws IOException {
-        stream.write(check());
+        HttpWriter writer = new HttpWriter();
+        StringBuilder buffer = new StringBuilder(builder.path);
+        Map<String, String> parameters = builder.parameters;
+        if (!parameters.isEmpty()) buffer.append("?");
+        List<String> list = new ArrayList<>(parameters.keySet());
+        for (int i = 0; i < list.size(); i++) {
+            String key = list.get(i);
+            String value = parameters.get(key);
+            if (i > 0) buffer.append("&");
+            buffer.append(getSafeURLEncoded(key));
+            buffer.append("=");
+            buffer.append(getSafeURLEncoded(value));
+        }
+        writer.write(String.join(" ", builder.method, buffer.toString(), "HTTP/1.1"));
+        for (Map.Entry<String, String> entry : builder().headers.entrySet()) {
+            writer.write(String.join(": ", entry.getKey(), entry.getValue()));
+        }
+        writer.write("");
+        Logger.debug(new String(writer.check(), StandardCharsets.UTF_8));
+        stream.write(writer.check());
+        byte[] payload = builder.payload;
+        if (payload != null && payload.length > 0) {
+            stream.write(payload);
+        }
         stream.flush();
     }
 
@@ -114,13 +139,14 @@ public class IonRequest implements ByteSink {
             String[] arr;
             arr = url.split(":", 2);
             this.protocol = arr[0];
-            if ("http".equals(protocol)) {
-                this.port = 80;
-            } else if ("https".equals(protocol)) {
-                this.port = 443;
-            }
             arr = arr[1].substring(2).split("/", 2);
-            this.hostname = arr[0];
+            String[] port = arr[0].split(":", 2);
+            this.hostname = port.length != 2 ? arr[0] : port[0];
+            if ("http".equals(protocol)) {
+                this.port = port.length != 2 ? 80 : Integer.parseInt(port[1]);
+            } else if ("https".equals(protocol)) {
+                this.port = port.length != 2 ? 443 : Integer.parseInt(port[1]);
+            }
             this.addHeader("Host", this.hostname);
             if (arr.length == 2) {
                 arr = arr[1].split("\\?", 2);
@@ -154,6 +180,11 @@ public class IonRequest implements ByteSink {
 
         public SimpleBuilder payload(byte[] payload) {
             this.payload = payload;
+            return this;
+        }
+
+        public SimpleBuilder payload(ByteSink sink) {
+            this.payload = sink.check();
             return this;
         }
 
@@ -247,6 +278,11 @@ public class IonRequest implements ByteSink {
 
         public AdvancedBuilder payload(byte[] payload) {
             this.payload = payload;
+            return this;
+        }
+
+        public AdvancedBuilder payload(ByteSink sink) {
+            this.payload = sink.check();
             return this;
         }
 
