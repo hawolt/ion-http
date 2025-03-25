@@ -140,7 +140,10 @@ public class IonClient {
     private Socket upgrade(IonRequest.Builder builder, boolean isProxyRequest, Socket socket) throws IOException {
         if (!isProxyRequest) return socket;
         if (!"https".equals(builder.protocol)) return socket;
-        return factory.createSocket(socket, builder.hostname, builder.port, true);
+        SSLSocket ssl = (SSLSocket) factory.createSocket(socket, builder.hostname, builder.port, true);
+        ssl.setEnabledProtocols(new String[]{tls.getValue()});
+        ssl.setEnabledCipherSuites(suites);
+        return ssl;
     }
 
     public IonResponse execute(IonRequest request) throws IOException {
