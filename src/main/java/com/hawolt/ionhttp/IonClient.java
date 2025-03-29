@@ -9,15 +9,19 @@ import com.hawolt.ionhttp.proxy.ProxyServer;
 import com.hawolt.ionhttp.request.IonRequest;
 import com.hawolt.ionhttp.request.IonResponse;
 import com.hawolt.ionhttp.request.tunnel.ProxyConnector;
+import com.hawolt.logger.Logger;
 
 import javax.net.ssl.*;
 import java.io.IOException;
 import java.net.Socket;
+import java.nio.charset.StandardCharsets;
 import java.security.KeyManagementException;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 
 public class IonClient {
+    public static boolean debug = false;
+
     private final static SSLSocketFactory DEFAULT_SOCKET_FACTORY = (SSLSocketFactory) SSLSocketFactory.getDefault();
 
     public static String[] getAvailableCipherSuites() {
@@ -158,6 +162,13 @@ public class IonClient {
         socket = upgrade(builder, isProxyRequest, socket);
         request.drainTo(socket.getOutputStream());
         IonResponse response = IonResponse.create(request, socket, manager);
+        if (IonClient.debug) {
+            Logger.debug(
+                    "- {}\n{}",
+                    System.currentTimeMillis(),
+                    response
+            );
+        }
         response.setPredecessor(proxied);
         return response;
     }

@@ -17,7 +17,6 @@ public class HttpWriter extends ByteWriter implements ByteSink {
     @Override
     public void drainTo(OutputStream stream) throws IOException {
         byte[] b = check();
-        Logger.debug("- {}\n{}", System.currentTimeMillis(), new String(b, StandardCharsets.UTF_8));
         stream.write(b);
         stream.flush();
     }

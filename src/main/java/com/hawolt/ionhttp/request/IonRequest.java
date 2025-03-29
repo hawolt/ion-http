@@ -1,5 +1,6 @@
 package com.hawolt.ionhttp.request;
 
+import com.hawolt.ionhttp.IonClient;
 import com.hawolt.ionhttp.data.ByteSink;
 import com.hawolt.ionhttp.data.HttpWriter;
 import com.hawolt.ionhttp.proxy.ProxyServer;
@@ -90,12 +91,18 @@ public class IonRequest implements ByteSink {
             writer.write(String.join(": ", entry.getKey(), entry.getValue()));
         }
         writer.write("");
-        Logger.debug(new String(writer.check(), StandardCharsets.UTF_8));
-        stream.write(writer.check());
         byte[] payload = builder.payload;
         if (payload != null && payload.length > 0) {
-            stream.write(payload);
+            writer.write(payload);
         }
+        if (IonClient.debug) {
+            Logger.debug(
+                    "- {}\n{}",
+                    System.currentTimeMillis(),
+                    new String(writer.check(), StandardCharsets.UTF_8)
+            );
+        }
+        stream.write(writer.check());
         stream.flush();
     }
 

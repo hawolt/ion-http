@@ -54,7 +54,7 @@ public class Cookie {
                 // ignored
             }
         }
-        Logger.debug("Failed to parse: {}", expiry);
+        Logger.debug("[ion-http] Unable to parse Cookie expires value: '{}'", expiry);
         return false;
     }
 
