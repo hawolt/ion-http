@@ -31,7 +31,7 @@
         <dependency>
             <groupId>com.github.hawolt.custom-core</groupId>
             <artifactId>logger</artifactId>
-            <version>a8d7f9b9c6</version>
+            <version>5310322fbe</version>
         </dependency>
     </dependencies>
 
