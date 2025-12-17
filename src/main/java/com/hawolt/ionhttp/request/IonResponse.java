@@ -86,6 +86,8 @@ public class IonResponse implements AutoCloseable {
             }
         } else if (close) {
             this.body = reader.readBasicBody();
+        } else if (code == 204 || code == 304) {
+            this.body = new byte[0];
         } else {
             throw new IOException("Encountered unknown state for the body");
         }
