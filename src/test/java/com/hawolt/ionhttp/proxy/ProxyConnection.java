@@ -11,6 +11,7 @@ import java.net.SocketTimeoutException;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -122,8 +123,10 @@ public class ProxyConnection implements Runnable, AutoCloseable {
             try (Socket proxied = new Socket(ip, 80)) {
                 SocketWriter w1 = new SocketWriter(proxied.getOutputStream());
                 w1.write(String.join(" ", builder.method, builder.path, "HTTP/1.1"));
-                for (Map.Entry<String, String> entry : builder.headers.entrySet()) {
-                    w1.write(String.join(": ", entry.getKey(), entry.getValue()));
+                for (Map.Entry<String, List<String>> entry : builder.headers.entrySet()) {
+                    for (String value : entry.getValue()) {
+                        w1.write(String.join(": ", entry.getKey(), value));
+                    }
                 }
                 w1.write("");
                 w1.flush();

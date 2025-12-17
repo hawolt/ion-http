@@ -47,8 +47,10 @@ public class IonRequest implements ByteSink {
             buffer.append(getSafeURLEncoded(value));
         }
         writer.write(String.join(" ", builder.method, buffer.toString(), "HTTP/1.1"));
-        for (Map.Entry<String, String> entry : builder().headers.entrySet()) {
-            writer.write(String.join(": ", entry.getKey(), entry.getValue()));
+        for (Map.Entry<String, List<String>> entry : builder().headers.entrySet()) {
+            for (String value : entry.getValue()) {
+                writer.write(String.join(": ", entry.getKey(), value));
+            }
         }
         writer.write("");
         byte[] payload = builder.payload;
@@ -87,8 +89,10 @@ public class IonRequest implements ByteSink {
             buffer.append(getSafeURLEncoded(value));
         }
         writer.write(String.join(" ", builder.method, buffer.toString(), "HTTP/1.1"));
-        for (Map.Entry<String, String> entry : builder().headers.entrySet()) {
-            writer.write(String.join(": ", entry.getKey(), entry.getValue()));
+        for (Map.Entry<String, List<String>> entry : builder().headers.entrySet()) {
+            for (String value : entry.getValue()) {
+                writer.write(String.join(": ", entry.getKey(), value));
+            }
         }
         writer.write("");
         byte[] payload = builder.payload;
@@ -112,7 +116,7 @@ public class IonRequest implements ByteSink {
     }
 
     public static class Builder {
-        public final Map<String, String> headers = new LinkedHashMap<>();
+        public final Map<String, List<String>> headers = new LinkedHashMap<>();
         public final Map<String, String> parameters = new HashMap<>();
         public String method, protocol, hostname, path;
         public IonReadState state;
@@ -181,7 +185,10 @@ public class IonRequest implements ByteSink {
         }
 
         public SimpleBuilder addHeader(String k, Object v) {
-            this.headers.put(k, v.toString());
+            if (!headers.containsKey(k)) {
+                this.headers.put(k, new LinkedList<>());
+            }
+            this.headers.get(k).add(v.toString());
             return this;
         }
 
@@ -274,7 +281,10 @@ public class IonRequest implements ByteSink {
         }
 
         public AdvancedBuilder addHeader(String k, Object v) {
-            this.headers.put(k, v.toString());
+            if (!headers.containsKey(k)) {
+                this.headers.put(k, new LinkedList<>());
+            }
+            this.headers.get(k).add(v.toString());
             return this;
         }
 
