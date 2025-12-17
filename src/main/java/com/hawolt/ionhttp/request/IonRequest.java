@@ -202,6 +202,16 @@ public class IonRequest implements ByteSink {
             return this;
         }
 
+        public SimpleBuilder method(String method) {
+            this.method = method;
+            return this;
+        }
+
+        public IonRequest build() {
+            if (method == null) throw new IllegalArgumentException("Method is null");
+            return new IonRequest(this);
+        }
+
         public IonRequest get() {
             this.method = "GET";
             return new IonRequest(this);
