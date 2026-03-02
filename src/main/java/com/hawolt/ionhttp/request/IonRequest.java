@@ -11,6 +11,7 @@ import java.io.OutputStream;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class IonRequest implements ByteSink {
@@ -31,8 +32,7 @@ public class IonRequest implements ByteSink {
         return new SimpleBuilder(url);
     }
 
-    @Override
-    public String toString() {
+    private HttpWriter buildHttpWriter() {
         HttpWriter writer = new HttpWriter();
         StringBuilder buffer = new StringBuilder(builder.path);
         Map<String, String> parameters = builder.parameters;
@@ -57,48 +57,39 @@ public class IonRequest implements ByteSink {
         if (payload != null && payload.length > 0) {
             writer.write(payload);
         }
-        return new String(writer.check(), StandardCharsets.UTF_8);
+        return writer;
     }
 
-    private boolean isAlreadyEncoded(String input) {
-        return ENCODED_PATTERN.matcher(input).find();
+    @Override
+    public String toString() {
+        return new String(buildHttpWriter().check(), StandardCharsets.UTF_8);
     }
 
     private String getSafeURLEncoded(String input) {
-        if (isAlreadyEncoded(input)) {
-            return input;
-        } else {
-            return URLEncoder.encode(input, StandardCharsets.UTF_8);
+        if (input == null || input.isEmpty()) return input;
+
+        Matcher matcher = ENCODED_PATTERN.matcher(input);
+        StringBuilder result = new StringBuilder();
+        int lastEnd = 0;
+
+        while (matcher.find()) {
+            if (matcher.start() > lastEnd) {
+                result.append(URLEncoder.encode(input.substring(lastEnd, matcher.start()), StandardCharsets.UTF_8));
+            }
+            result.append(matcher.group());
+            lastEnd = matcher.end();
         }
+
+        if (lastEnd < input.length()) {
+            result.append(URLEncoder.encode(input.substring(lastEnd), StandardCharsets.UTF_8));
+        }
+
+        return result.toString();
     }
 
-    //TODO fix this
     @Override
     public void drainTo(OutputStream stream) throws IOException {
-        HttpWriter writer = new HttpWriter();
-        StringBuilder buffer = new StringBuilder(builder.path);
-        Map<String, String> parameters = builder.parameters;
-        if (!parameters.isEmpty()) buffer.append("?");
-        List<String> list = new ArrayList<>(parameters.keySet());
-        for (int i = 0; i < list.size(); i++) {
-            String key = list.get(i);
-            String value = parameters.get(key);
-            if (i > 0) buffer.append("&");
-            buffer.append(getSafeURLEncoded(key));
-            buffer.append("=");
-            buffer.append(getSafeURLEncoded(value));
-        }
-        writer.write(String.join(" ", builder.method, buffer.toString(), "HTTP/1.1"));
-        for (Map.Entry<String, List<String>> entry : builder().headers.entrySet()) {
-            for (String value : entry.getValue()) {
-                writer.write(String.join(": ", entry.getKey(), value));
-            }
-        }
-        writer.write("");
-        byte[] payload = builder.payload;
-        if (payload != null && payload.length > 0) {
-            writer.write(payload);
-        }
+        HttpWriter writer = buildHttpWriter();
         if (IonClient.debug) {
             Logger.debug(
                     "- {}\n{}",
@@ -127,7 +118,7 @@ public class IonRequest implements ByteSink {
         @Override
         public String toString() {
             String base = String.format(
-                    "%s://%s%s/%s",
+                    "%s://%s%s%s",
                     protocol,
                     hostname,
                     port > 0 ? ":" + port : "",
@@ -135,10 +126,11 @@ public class IonRequest implements ByteSink {
             );
             StringBuilder builder = new StringBuilder(base);
             if (!parameters.isEmpty()) builder.append("?");
-            for (Map.Entry<String, String> entry : parameters.entrySet()) {
-                builder.append(entry.getKey()).append("=").append(entry.getValue()).append("&");
+            List<String> keys = new ArrayList<>(parameters.keySet());
+            for (int i = 0; i < keys.size(); i++) {
+                if (i > 0) builder.append("&");
+                builder.append(keys.get(i)).append("=").append(parameters.get(keys.get(i)));
             }
-            if (!parameters.isEmpty()) builder.setLength(builder.length() - 1);
             return builder.toString();
         }
     }
