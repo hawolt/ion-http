@@ -36,7 +36,7 @@
         <dependency>
             <groupId>com.github.hawolt.custom-core</groupId>
             <artifactId>slf4j-logger</artifactId>
-            <version>9277a3990e</version>
+            <version>957e72909b</version>
             <scope>runtime</scope>
         </dependency>
     </dependencies>
