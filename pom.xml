@@ -29,9 +29,15 @@
             <scope>test</scope>
         </dependency>
         <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+            <version>2.0.16</version>
+        </dependency>
+        <dependency>
             <groupId>com.github.hawolt.custom-core</groupId>
-            <artifactId>logger</artifactId>
-            <version>5310322fbe</version>
+            <artifactId>slf4j-logger</artifactId>
+            <version>9277a3990e</version>
+            <scope>runtime</scope>
         </dependency>
     </dependencies>
 

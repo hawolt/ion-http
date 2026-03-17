@@ -4,7 +4,8 @@ import com.hawolt.ionhttp.IonClient;
 import com.hawolt.ionhttp.data.ByteSink;
 import com.hawolt.ionhttp.data.HttpWriter;
 import com.hawolt.ionhttp.proxy.ProxyServer;
-import com.hawolt.logger.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -15,6 +16,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class IonRequest implements ByteSink {
+
+    private static final Logger logger = LoggerFactory.getLogger(IonRequest.class);
 
     private static final Pattern ENCODED_PATTERN = Pattern.compile("%[0-9A-Fa-f]{2}");
 
@@ -35,29 +38,43 @@ public class IonRequest implements ByteSink {
     private HttpWriter buildHttpWriter() {
         HttpWriter writer = new HttpWriter();
         StringBuilder buffer = new StringBuilder(builder.path);
+
         Map<String, String> parameters = builder.parameters;
         if (!parameters.isEmpty()) buffer.append("?");
-        List<String> list = new ArrayList<>(parameters.keySet());
-        for (int i = 0; i < list.size(); i++) {
-            String key = list.get(i);
+        List<String> keys = new ArrayList<>(parameters.keySet());
+        for (int i = 0; i < keys.size(); i++) {
+            String key = keys.get(i);
             String value = parameters.get(key);
             if (i > 0) buffer.append("&");
             buffer.append(getSafeURLEncoded(key));
             buffer.append("=");
             buffer.append(getSafeURLEncoded(value));
         }
-        writer.write(String.join(" ", builder.method, buffer.toString(), "HTTP/1.1"));
-        for (Map.Entry<String, List<String>> entry : builder().headers.entrySet()) {
+
+        String requestTarget;
+        if (requiresAbsoluteTarget()) {
+            requestTarget = builder.protocol + "://" + builder.hostname + buffer;
+        } else {
+            requestTarget = buffer.toString();
+        }
+
+        writer.write(String.join(" ", builder.method, requestTarget, "HTTP/1.1"));
+        for (Map.Entry<String, List<String>> entry : builder.headers.entrySet()) {
             for (String value : entry.getValue()) {
-                writer.write(String.join(": ", entry.getKey(), value));
+                writer.write(entry.getKey() + ": " + value);
             }
         }
         writer.write("");
+
         byte[] payload = builder.payload;
         if (payload != null && payload.length > 0) {
             writer.write(payload);
         }
         return writer;
+    }
+
+    private boolean requiresAbsoluteTarget() {
+        return builder.proxy != null && "http".equals(builder.protocol);
     }
 
     @Override
@@ -74,14 +91,21 @@ public class IonRequest implements ByteSink {
 
         while (matcher.find()) {
             if (matcher.start() > lastEnd) {
-                result.append(URLEncoder.encode(input.substring(lastEnd, matcher.start()), StandardCharsets.UTF_8));
+                result.append(
+                        URLEncoder.encode(
+                                input.substring(lastEnd, matcher.start()),
+                                StandardCharsets.UTF_8
+                        )
+                );
             }
             result.append(matcher.group());
             lastEnd = matcher.end();
         }
 
         if (lastEnd < input.length()) {
-            result.append(URLEncoder.encode(input.substring(lastEnd), StandardCharsets.UTF_8));
+            result.append(
+                    URLEncoder.encode(input.substring(lastEnd), StandardCharsets.UTF_8)
+            );
         }
 
         return result.toString();
@@ -91,11 +115,7 @@ public class IonRequest implements ByteSink {
     public void drainTo(OutputStream stream) throws IOException {
         HttpWriter writer = buildHttpWriter();
         if (IonClient.debug) {
-            Logger.debug(
-                    "- {}\n{}",
-                    System.currentTimeMillis(),
-                    new String(writer.check(), StandardCharsets.UTF_8)
-            );
+            logger.debug("- {}\n{}", System.currentTimeMillis(), new String(writer.check(), StandardCharsets.UTF_8));
         }
         stream.write(writer.check());
         stream.flush();
@@ -103,7 +123,7 @@ public class IonRequest implements ByteSink {
 
     @Override
     public byte[] check() {
-        return toString().getBytes(StandardCharsets.UTF_8);
+        return buildHttpWriter().check();
     }
 
     public static class Builder {
@@ -126,10 +146,10 @@ public class IonRequest implements ByteSink {
             );
             StringBuilder builder = new StringBuilder(base);
             if (!parameters.isEmpty()) builder.append("?");
-            List<String> keys = new ArrayList<>(parameters.keySet());
-            for (int i = 0; i < keys.size(); i++) {
+            List<String> parameters = new ArrayList<>(this.parameters.keySet());
+            for (int i = 0; i < parameters.size(); i++) {
                 if (i > 0) builder.append("&");
-                builder.append(keys.get(i)).append("=").append(parameters.get(keys.get(i)));
+                builder.append(parameters.get(i)).append("=").append(this.parameters.get(parameters.get(i)));
             }
             return builder.toString();
         }
@@ -144,13 +164,15 @@ public class IonRequest implements ByteSink {
             this.protocol = arr[0];
             arr = arr[1].substring(2).split("/", 2);
             String[] port = arr[0].split(":", 2);
-            this.hostname = port.length != 2 ? arr[0] : port[0];
+            this.hostname = port[0];
             if ("http".equals(protocol)) {
-                this.port = port.length != 2 ? 80 : Integer.parseInt(port[1]);
+                this.port = port.length == 2 ? Integer.parseInt(port[1]) : 80;
             } else if ("https".equals(protocol)) {
-                this.port = port.length != 2 ? 443 : Integer.parseInt(port[1]);
+                this.port = port.length == 2 ? Integer.parseInt(port[1]) : 443;
             }
-            this.addHeader("Host", this.hostname);
+
+            this.headers.put("Host", new LinkedList<>(Collections.singletonList(this.hostname)));
+
             if (arr.length == 2) {
                 arr = arr[1].split("\\?", 2);
                 this.path = "/" + arr[0];
@@ -158,8 +180,7 @@ public class IonRequest implements ByteSink {
                 this.path = "/";
             }
             if (arr.length < 2) return;
-            arr = arr[1].split("&");
-            for (String parameter : arr) {
+            for (String parameter : arr[1].split("&")) {
                 String[] pair = parameter.split("=", 2);
                 String value = pair.length == 2 ? pair[1] : "";
                 this.parameters.put(pair[0], value);
@@ -177,10 +198,11 @@ public class IonRequest implements ByteSink {
         }
 
         public SimpleBuilder addHeader(String k, Object v) {
-            if (!headers.containsKey(k)) {
-                this.headers.put(k, new LinkedList<>());
+            if ("Host".equalsIgnoreCase(k)) {
+                this.headers.put(k, new LinkedList<>(Collections.singletonList(v.toString())));
+            } else {
+                this.headers.computeIfAbsent(k, ignored -> new LinkedList<>()).add(v.toString());
             }
-            this.headers.get(k).add(v.toString());
             return this;
         }
 
@@ -200,7 +222,7 @@ public class IonRequest implements ByteSink {
         }
 
         public IonRequest build() {
-            if (method == null) throw new IllegalArgumentException("Method is null");
+            if (method == null) throw new IllegalArgumentException("Method must not be null");
             return new IonRequest(this);
         }
 
@@ -283,10 +305,7 @@ public class IonRequest implements ByteSink {
         }
 
         public AdvancedBuilder addHeader(String k, Object v) {
-            if (!headers.containsKey(k)) {
-                this.headers.put(k, new LinkedList<>());
-            }
-            this.headers.get(k).add(v.toString());
+            this.headers.computeIfAbsent(k, ignored -> new LinkedList<>()).add(v.toString());
             return this;
         }
 

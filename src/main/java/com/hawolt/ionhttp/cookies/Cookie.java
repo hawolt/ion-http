@@ -1,6 +1,7 @@
 package com.hawolt.ionhttp.cookies;
 
-import com.hawolt.logger.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
@@ -8,6 +9,8 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 public class Cookie {
+
+    private static final Logger logger = LoggerFactory.getLogger(Cookie.class);
 
     private final static DateTimeFormatter[] DATE_FORMATTERS = new DateTimeFormatter[]{
             DateTimeFormatter.ofPattern("EEE, dd-MMM-yy HH:mm:ss z", Locale.US),
@@ -24,19 +27,32 @@ public class Cookie {
         this.origin = hostname.split("/", 3)[2].split("/")[0];
         String[] data = source.split(";", 2);
         String[] cookie = data[0].split("=", 2);
-        this.name = cookie[0];
-        this.value = cookie[1];
-        String[] args = data[1].split(";");
-        for (String meta : args) {
-            if (!meta.contains("=")) switches.add(meta.trim());
-            else {
-                String[] metadata = meta.trim().split("=");
-                map.put(metadata[0], metadata[1]);
+        this.name = cookie[0].trim();
+        this.value = cookie.length > 1 ? cookie[1] : "";
+
+        if (data.length > 1) {
+            String[] args = data[1].split(";");
+            for (String meta : args) {
+                String trimmed = meta.trim();
+                if (trimmed.isEmpty()) continue;
+                if (!trimmed.contains("=")) {
+                    switches.add(trimmed);
+                } else {
+                    String[] metadata = trimmed.split("=", 2);
+                    map.put(metadata[0].trim(), metadata[1].trim());
+                }
             }
         }
-        if (map.get("domain") != null) return;
-        String[] children = origin.split("\\.");
-        map.put("domain", Arrays.stream(origin.split("\\.")).skip(children.length <= 2 ? 0 : 1).collect(Collectors.joining(".")));
+
+        if (map.get("domain") == null) {
+            String[] children = origin.split("\\.");
+            map.put(
+                    "domain",
+                    Arrays.stream(origin.split("\\."))
+                            .skip(children.length <= 2 ? 0 : 1)
+                            .collect(Collectors.joining("."))
+            );
+        }
     }
 
     public String get() {
@@ -51,10 +67,10 @@ public class Cookie {
                 ZonedDateTime dateTime = ZonedDateTime.parse(expiry, formatter);
                 return System.currentTimeMillis() < dateTime.toInstant().toEpochMilli();
             } catch (Exception e) {
-                // ignored
+
             }
         }
-        Logger.debug("[ion-http] Unable to parse Cookie expires value: '{}'", expiry);
+        logger.debug("[ion-http] Unable to parse Cookie expires value: '{}'", expiry);
         return false;
     }
 
@@ -63,7 +79,7 @@ public class Cookie {
     }
 
     public boolean isValidFor(String hostname) {
-        return map.containsKey("domain") && map.get("domain").endsWith(hostname);
+        return map.containsKey("domain") && hostname.endsWith(map.get("domain"));
     }
 
     public String getName() {
@@ -87,7 +103,10 @@ public class Cookie {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         Cookie cookie = (Cookie) o;
-        return Objects.equals(map, cookie.map) && Objects.equals(switches, cookie.switches) && Objects.equals(name, cookie.name) && Objects.equals(value, cookie.value);
+        return Objects.equals(map, cookie.map)
+                && Objects.equals(switches, cookie.switches)
+                && Objects.equals(name, cookie.name)
+                && Objects.equals(value, cookie.value);
     }
 
     @Override

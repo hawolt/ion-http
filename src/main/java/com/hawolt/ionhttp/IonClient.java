@@ -6,20 +6,24 @@ import com.hawolt.ionhttp.cookies.CookieManager;
 import com.hawolt.ionhttp.cookies.impl.ForgettingCookieManager;
 import com.hawolt.ionhttp.misc.TLS;
 import com.hawolt.ionhttp.proxy.ProxyServer;
+import com.hawolt.ionhttp.request.IonReadState;
 import com.hawolt.ionhttp.request.IonRequest;
 import com.hawolt.ionhttp.request.IonResponse;
 import com.hawolt.ionhttp.request.tunnel.ProxyConnector;
-import com.hawolt.logger.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javax.net.ssl.*;
 import java.io.IOException;
 import java.net.Socket;
-import java.nio.charset.StandardCharsets;
 import java.security.KeyManagementException;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 
 public class IonClient {
+
+    private static final Logger logger = LoggerFactory.getLogger(IonClient.class);
+
     public static boolean debug = false;
 
     private final static SSLSocketFactory DEFAULT_SOCKET_FACTORY = (SSLSocketFactory) SSLSocketFactory.getDefault();
@@ -102,7 +106,6 @@ public class IonClient {
         }
     }
 
-
     private Socket create(String protocol, String host, int port) throws IOException {
         if ("https".equals(protocol)) {
             SSLSocket socket = (SSLSocket) factory.createSocket(host, port);
@@ -116,64 +119,84 @@ public class IonClient {
     }
 
     private Socket tunnel(IonRequest request, ProxyServer proxy) throws IOException {
-        Socket socket = null;
+        Socket socket = new Socket(proxy.getHost(), proxy.getPort());
         try {
             ProxyConnector connector = ProxyConnector.build(proxy, request);
-            socket = create("http", proxy.getHost(), proxy.getPort());
             connector.drainTo(socket.getOutputStream());
-        } catch (IOException e) {
-            if (socket != null) {
+
+            IonResponse connectResponse = IonResponse.create(
+                    buildStatusOnlyRequest(request), socket, manager
+            );
+            int code = connectResponse.code();
+            if (code < 200 || code >= 300) {
                 socket.close();
+                throw new IOException(
+                        "Proxy CONNECT rejected with status " + code
+                );
             }
+        } catch (IOException e) {
+            socket.close();
             throw e;
         }
         return socket;
     }
 
-    private Socket plain(IonRequest request) throws IOException {
-        IonRequest.Builder builder = request.builder();
-        return create(builder.protocol, builder.hostname, builder.port);
+    private Socket upgrade(IonRequest.Builder builder, boolean isProxyRequest, Socket socket) throws IOException {
+        if (!isProxyRequest || !"https".equals(builder.protocol)) return socket;
+        SSLSocket ssl = (SSLSocket) factory.createSocket(
+                socket, builder.hostname, builder.port, true
+        );
+        ssl.setEnabledProtocols(new String[]{tls.getValue()});
+        ssl.setEnabledCipherSuites(suites);
+        ssl.startHandshake();
+        return ssl;
     }
 
     private Socket openConnection(IonRequest request) throws IOException {
-        ProxyServer overwrite = request.builder().proxy;
-        ProxyServer proxy = overwrite != null ? overwrite : this.proxy;
-        return proxy == null ? plain(request) : tunnel(request, proxy);
-    }
-
-    private Socket upgrade(IonRequest.Builder builder, boolean isProxyRequest, Socket socket) throws IOException {
-        if (!isProxyRequest) return socket;
-        if (!"https".equals(builder.protocol)) return socket;
-        SSLSocket ssl = (SSLSocket) factory.createSocket(socket, builder.hostname, builder.port, true);
-        ssl.setEnabledProtocols(new String[]{tls.getValue()});
-        ssl.setEnabledCipherSuites(suites);
-        return ssl;
+        ProxyServer effective = bind(request);
+        if (effective == null) {
+            IonRequest.Builder b = request.builder();
+            return create(b.protocol, b.hostname, b.port);
+        }
+        return tunnel(request, effective);
     }
 
     public IonResponse execute(IonRequest request) throws IOException {
         IonRequest.Builder builder = request.builder();
+        ProxyServer effective = bind(request);
+        boolean isProxyRequest = effective != null;
+
         Socket socket = openConnection(request);
-        ProxyServer overwrite = request.builder().proxy;
-        ProxyServer proxy = overwrite != null ? overwrite : this.proxy;
-        boolean isProxyRequest = proxy != null;
-        IonResponse proxied = isProxyRequest ?
-                IonResponse.create(request, socket, manager) :
-                null;
         socket = upgrade(builder, isProxyRequest, socket);
+
+        if (debug) logger.debug("- {}\n{}", System.currentTimeMillis(), request);
+
         request.drainTo(socket.getOutputStream());
         IonResponse response = IonResponse.create(request, socket, manager);
-        if (IonClient.debug) {
-            Logger.debug(
-                    "- {}\n{}",
-                    System.currentTimeMillis(),
-                    response
-            );
-        }
-        response.setPredecessor(proxied);
+
+        if (debug) logger.debug("- {}\n{}", System.currentTimeMillis(), response);
+
         return response;
     }
 
     public CookieManager getCookieManager() {
         return manager;
+    }
+
+    private ProxyServer bind(IonRequest request) {
+        ProxyServer overwrite = request.builder().proxy;
+        return overwrite != null ? overwrite : this.proxy;
+    }
+
+    private static IonRequest buildStatusOnlyRequest(IonRequest original) {
+        IonRequest.Builder b = original.builder();
+        return new IonRequest.AdvancedBuilder()
+                .state(IonReadState.STATUS)
+                .protocol(b.protocol)
+                .hostname(b.hostname)
+                .port(b.port)
+                .method("CONNECT")
+                .path(b.hostname + ":" + b.port)
+                .build();
     }
 }

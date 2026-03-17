@@ -7,6 +7,7 @@ import java.io.IOException;
 import java.io.InputStream;
 
 public class SocketReader implements AutoCloseable {
+
     private final InputStream inputStream;
 
     public SocketReader(InputStream inputStream) {
@@ -27,66 +28,86 @@ public class SocketReader implements AutoCloseable {
                 }
             }
             builder.append((char) code);
-            if (builder.isEmpty()) continue;
-            char eof = builder.charAt(builder.length() - 1);
-            if (eof == '\n') {
-                String line = builder.substring(0, builder.length()).trim();
-                builder.setLength(0);
-                return line;
+            if (!builder.isEmpty()) {
+                char last = builder.charAt(builder.length() - 1);
+                if (last == '\n') {
+                    return builder.substring(0, builder.length()).trim();
+                }
             }
         }
     }
 
     public byte[] readBasicBody() throws IOException {
-        ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
         int code;
         while ((code = inputStream.read()) != -1) {
-            byteArrayOutputStream.write(code);
+            out.write(code);
         }
-        return byteArrayOutputStream.toByteArray();
+        return out.toByteArray();
     }
 
     public byte[] readContentLengthBody(int length) throws IOException {
-        ByteArrayOutputStream stream = new ByteArrayOutputStream();
+        ByteArrayOutputStream out = new ByteArrayOutputStream(length);
         int count = 0;
-        byte[] buffer = new byte[1024];
+        byte[] buffer = new byte[4096];
         while (count < length) {
             int amount = Math.min(length - count, buffer.length);
             int read = inputStream.read(buffer, 0, amount);
             if (read == -1) {
-                throw new IOException("Unexpected end of stream");
+                throw new IOException(
+                        "Unexpected end of stream: expected " + length + " bytes, received " + count
+                );
             }
-            stream.write(buffer, 0, read);
+            out.write(buffer, 0, read);
             count += read;
         }
-        return stream.toByteArray();
+        return out.toByteArray();
     }
 
     public byte[] readChunkedBody() throws IOException {
-        ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
         while (true) {
             String chunkSizeLine = readContentLine();
             if (chunkSizeLine == null) {
-                throw new IOException("Unexpected end of stream");
+                throw new IOException("Unexpected end of stream in chunked body");
             }
-            int chunkSize = Integer.parseInt(chunkSizeLine, 16);
+
+            int semicolon = chunkSizeLine.indexOf(';');
+            String hexSize = (semicolon >= 0
+                    ? chunkSizeLine.substring(0, semicolon)
+                    : chunkSizeLine).trim();
+
+            int chunkSize;
+            try {
+                chunkSize = Integer.parseInt(hexSize, 16);
+            } catch (NumberFormatException e) {
+                throw new IOException(
+                        "Invalid chunk size line: '" + chunkSizeLine + "'", e
+                );
+            }
+
             if (chunkSize == 0) {
-                readContentLine(); // read the trailing \r\n after the 0-sized chunk
+                readContentLine();
                 break;
             }
+
             byte[] chunk = new byte[chunkSize];
             int bytesRead = 0;
             while (bytesRead < chunkSize) {
                 int read = inputStream.read(chunk, bytesRead, chunkSize - bytesRead);
                 if (read == -1) {
-                    throw new IOException("Unexpected end of stream");
+                    throw new IOException(
+                            "Unexpected end of stream inside chunk " +
+                                    "(expected " + chunkSize + " bytes, got " + bytesRead + ")"
+                    );
                 }
                 bytesRead += read;
             }
-            byteArrayOutputStream.write(chunk, 0, chunkSize);
-            readContentLine(); // read the trailing \r\n after each chunk
+            out.write(chunk, 0, chunkSize);
+
+            readContentLine();
         }
-        return byteArrayOutputStream.toByteArray();
+        return out.toByteArray();
     }
 
     @Override
